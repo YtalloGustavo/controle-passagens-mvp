@@ -1,11 +1,60 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Vaga {
+  id               Int      @id @default(autoincrement())
+  data             DateTime
+  direcao          String
+  vagasDisponiveis Int
+  vagasExtras      Int      @default(0)
+  vagasOcupadas    Int      @default(0)
+  bloqueado        Boolean  @default(false)
+  criadoEm         DateTime @default(now())
+  atualizadoEm     DateTime @updatedAt
+  solicitacoes     Solicitacao[]
+
+  @@unique([data, direcao])
+}
+
+model Solicitacao {
+  id              Int      @id @default(autoincrement())
+  nomePassageiro  String
+  cpfPassageiro   String
+  dataNascimento  DateTime
+  setor           String
+  motivo          String
+  status          String   @default("ANALISE_GESTOR")
+  vagaId          Int
+  vaga            Vaga     @relation(fields: [vagaId], references: [id])
+  historico       HistoricoAprovacao[]
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+}
+
+model Usuario {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  senha      String
+  nome       String
+  perfil     String
+  setor      String?
+  historicos HistoricoAprovacao[]
+}
+
+model HistoricoAprovacao {
+  id             Int      @id @default(autoincrement())
+  data           DateTime @default(now())
+  statusAnterior String
+  statusNovo     String
+  observacao     String?
+  solicitacaoId  Int
+  solicitacao    Solicitacao @relation(fields: [solicitacaoId], references: [id])
+  usuarioId      Int
+  usuario        Usuario     @relation(fields: [usuarioId], references: [id])
 }
