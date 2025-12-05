@@ -88,6 +88,7 @@ const alternarBloqueio = async (vaga: any) => {
           <span class="material-icons group-hover:text-blue-400 transition-colors">add_circle_outline</span>
           <span class="font-medium hidden lg:block">Nova Solicitação</span>
         </NuxtLink>
+
         <NuxtLink to="/minhas-solicitacoes" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group">
           <span class="material-icons group-hover:text-emerald-400 transition-colors">history</span>
           <span class="font-medium hidden lg:block">Minhas Solicitações</span>
@@ -105,6 +106,24 @@ const alternarBloqueio = async (vaga: any) => {
         >
           <span class="material-icons group-hover:text-cyan-400 transition-colors">bar_chart</span>
           <span class="font-medium hidden lg:block">Relatórios</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          v-if="['GESTOR', 'ADMIN', 'MASTER'].includes(usuario?.perfil || '')"
+          to="/gestor/colaboradores" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-amber-400 transition-colors">people</span>
+          <span class="font-medium hidden lg:block">Minha Equipe</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          v-if="usuario?.perfil === 'MASTER'"
+          to="/admin/vagas" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-rose-400 transition-colors">lock_clock</span>
+          <span class="font-medium hidden lg:block">Gerenciar Vagas</span>
         </NuxtLink>
       </nav>
 

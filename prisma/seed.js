@@ -43,7 +43,43 @@ async function main() {
         }
     })
 
-    console.log('✅ Usuários criados! (Gestor, Passagem, Admin)')
+    // Criar Gerente de Hospedagem
+    await prisma.usuario.upsert({
+        where: { email: 'hospedagem@pousada.com' },
+        update: {},
+        create: {
+            email: 'hospedagem@pousada.com',
+            senha: '123',
+            nome: 'Mariana Hospedagem',
+            perfil: 'HOSPEDAGEM'
+        }
+    })
+
+    // Criar Superintendente Financeiro
+    await prisma.usuario.upsert({
+        where: { email: 'financeiro@banco.com' },
+        update: {},
+        create: {
+            email: 'financeiro@banco.com',
+            senha: '123',
+            nome: 'Roberto Financeiro',
+            perfil: 'FINANCEIRO'
+        }
+    })
+
+    // Criar Gerente Master
+    await prisma.usuario.upsert({
+        where: { email: 'master@sistema.com' },
+        update: {},
+        create: {
+            email: 'master@sistema.com',
+            senha: '123',
+            nome: 'Diretor Master',
+            perfil: 'MASTER'
+        }
+    })
+
+    console.log('✅ Usuários criados! (Gestor, Passagem, Admin, Hospedagem, Financeiro, Master)')
 }
 
 main()

@@ -52,10 +52,13 @@ const pendencias = computed(() => {
     // 3. Hospedagem vê aprovados pela Passagem
     if (cargoSelecionado === 'HOSPEDAGEM' && s.status === 'ANALISE_HOSPEDAGEM') return true
     
-    // 4. Admin vê aprovados pela Hospedagem
+    // 4. Passagem vê aprovados pela Hospedagem (Verificação de Volta)
+    if (cargoSelecionado === 'PASSAGEM' && s.status === 'VERIFICACAO_VOLTA') return true
+
+    // 5. Admin vê aprovados pela Passagem (Fase Final)
     if (cargoSelecionado === 'ADMIN' && s.status === 'APROVACAO_ADMIN') return true
     
-    // 5. Financeiro vê aprovados pelo Admin (Fase Final)
+    // 6. Financeiro vê aprovados pelo Admin (Fase Final)
     if (cargoSelecionado === 'FINANCEIRO' && s.status === 'ANALISE_FINANCEIRO') return true
     
     return false
@@ -69,14 +72,15 @@ const processar = async (id: number, acao: 'APROVAR' | 'NEGAR') => {
 
   // Se for a Mariana (Hospedagem) a aprovar, precisamos saber ONDE o funcionário fica
   if (acao === 'APROVAR' && cargo === 'HOSPEDAGEM') {
-    const info = prompt('Informe os detalhes da hospedagem (Ex: Casa Funcional 01 ou Hotel X):', 'Casa Funcional')
+    // const info = prompt('Informe os detalhes da hospedagem (Ex: Casa Funcional 01 ou Hotel X):', 'Casa Funcional')
+    const info = 'Casa Funcional 01' // Hardcoded for testing
     if (!info) return // Cancela se não preencher
     detalhesHospedagem = { tipo: 'DEFINIDO_PELO_GERENTE', info: info }
   } 
   // Confirmação padrão para os outros
-  else if (!confirm(`Tem certeza que deseja ${acao === 'APROVAR' ? 'Aprovar' : 'Rejeitar'} esta solicitação?`)) {
-    return
-  }
+  // else if (!confirm(`Tem certeza que deseja ${acao === 'APROVAR' ? 'Aprovar' : 'Rejeitar'} esta solicitação?`)) {
+  //   return
+  // }
 
   processando.value = id
   try {

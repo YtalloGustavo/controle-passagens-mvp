@@ -2,73 +2,68 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// FLUXO COMPLETO SEGUNDO O DOCUMENTO 
+// Definição do Fluxo de Aprovação
 const FLUXO_APROVACAO: Record<string, { proximo: string, perfilNecessario: string }> = {
     // 1. Gestor aprova -> Vai para Passagem
     'ANALISE_GESTOR': { proximo: 'ANALISE_PASSAGEM', perfilNecessario: 'GESTOR' },
 
-    // 2. Passagem aprova -> Vai para Hospedagem [cite: 20]
+    // 2. Passagem aprova -> Vai para Hospedagem
     'ANALISE_PASSAGEM': { proximo: 'ANALISE_HOSPEDAGEM', perfilNecessario: 'PASSAGEM' },
 
-    // 3. Hospedagem aprova -> Vai para Admin [cite: 22]
-    'ANALISE_HOSPEDAGEM': { proximo: 'APROVACAO_ADMIN', perfilNecessario: 'HOSPEDAGEM' },
+    // 3. Hospedagem aprova -> Vai para Verificação de Volta (Passagem novamente)
+    'ANALISE_HOSPEDAGEM': { proximo: 'VERIFICACAO_VOLTA', perfilNecessario: 'HOSPEDAGEM' },
 
-    // 4. Admin aprova -> Vai para Financeiro [cite: 23]
+    // 4. Passagem confirma volta -> Vai para Admin
+    'VERIFICACAO_VOLTA': { proximo: 'APROVACAO_ADMIN', perfilNecessario: 'PASSAGEM' },
+
+    // 5. Admin aprova -> Vai para Financeiro
     'APROVACAO_ADMIN': { proximo: 'ANALISE_FINANCEIRO', perfilNecessario: 'ADMIN' },
 
-    // 5. Financeiro aprova -> FIM (Aprovado)
+    // 6. Financeiro aprova -> FIM (Aprovado)
     'ANALISE_FINANCEIRO': { proximo: 'APROVADO', perfilNecessario: 'FINANCEIRO' }
 }
 
 export default defineEventHandler(async (event) => {
     const body = await readBody(event)
 
-    // Validações iniciais...
     if (!body.solicitacaoId || !body.usuarioId || !body.acao) {
         throw createError({ statusCode: 400, statusMessage: 'Dados incompletos.' })
     }
 
+    // 1. Buscar Solicitação e Usuário
     const solicitacao = await prisma.solicitacao.findUnique({ where: { id: body.solicitacaoId } })
-    if (!solicitacao) {
-        throw createError({ statusCode: 404, statusMessage: `Solicitação ${body.solicitacaoId} não encontrada` })
-    }
-
     const usuario = await prisma.usuario.findUnique({ where: { id: body.usuarioId } })
-    if (!usuario) {
-        throw createError({ statusCode: 404, statusMessage: `Usuário com ID ${body.usuarioId} não encontrado no banco` })
+
+    if (!solicitacao) throw createError({ statusCode: 404, statusMessage: `Solicitação ${body.solicitacaoId} não encontrada` })
+    if (!usuario) throw createError({ statusCode: 404, statusMessage: 'Usuário não encontrado' })
+
+    // 2. Verificar Permissão
+    const etapaAtual = FLUXO_APROVACAO[solicitacao.status]
+
+    // Se não estiver no fluxo (ex: já aprovado ou recusado), erro
+    if (!etapaAtual && body.acao === 'APROVAR') {
+        throw createError({ statusCode: 400, statusMessage: 'Esta solicitação não está pendente de aprovação.' })
     }
 
-    // Lógica de Permissão
-    const regraAtual = FLUXO_APROVACAO[solicitacao.status]
-    if (!regraAtual) throw createError({ statusCode: 400, statusMessage: 'Status finalizado.' })
-
-    // Verifica se o usuário tem o perfil certo (ou é Admin a tentar forçar, exceto se for a própria etapa dele)
-    // Nota: O Admin geralmente pode tudo, mas para seguir o fluxo estrito, vamos exigir o perfil exato ou ADMIN apenas na etapa dele.
-    // Para facilitar o teste, vamos permitir que ADMIN aprove tudo se quiseres, mas o correto é cada um na sua.
-    const temPermissao = usuario.perfil === regraAtual.perfilNecessario || usuario.perfil === 'ADMIN'
-
-    if (!temPermissao) {
-        throw createError({ statusCode: 403, statusMessage: `Apenas ${regraAtual.perfilNecessario} pode aprovar.` })
+    // Se recusar, qualquer um dos perfis envolvidos pode? Ou só o da etapa?
+    // Regra: Só quem está na etapa pode aprovar/recusar
+    if (etapaAtual && usuario.perfil !== etapaAtual.perfilNecessario && usuario.perfil !== 'MASTER') {
+        throw createError({ statusCode: 403, statusMessage: `Apenas ${etapaAtual.perfilNecessario} pode aprovar nesta etapa.` })
     }
 
-    let novoStatus = ''
-    let dadosExtras = {} // Para salvar info de hospedagem se for o caso
-
-    if (body.acao === 'NEGAR') {
-        novoStatus = 'NEGADO'
-    } else {
-        novoStatus = regraAtual.proximo
-
-        // Se quem está aprovando é a Hospedagem, vamos salvar os dados da casa/hotel [cite: 47]
-        if (usuario.perfil === 'HOSPEDAGEM' && body.detalhesHospedagem) {
-            dadosExtras = {
-                tipoHospedagem: body.detalhesHospedagem.tipo, // CASA_FUNCIONAL ou HOTEL
-                infoHospedagem: body.detalhesHospedagem.info
-            }
-        }
+    // 3. Definir Novo Status
+    let novoStatus = solicitacao.status
+    if (body.acao === 'APROVAR') {
+        novoStatus = etapaAtual.proximo
+    } else if (body.acao === 'RECUSAR') {
+        novoStatus = 'RECUSADO'
     }
 
-    // Executa a transação
+    // 4. Atualizar no Banco
+    const dadosExtras: any = {}
+    if (body.tipoHospedagem) dadosExtras.tipoHospedagem = body.tipoHospedagem
+    if (body.infoHospedagem) dadosExtras.infoHospedagem = body.infoHospedagem
+
     await prisma.$transaction([
         prisma.solicitacao.update({
             where: { id: solicitacao.id },
@@ -85,5 +80,5 @@ export default defineEventHandler(async (event) => {
         })
     ])
 
-    return { sucesso: true, novoStatus }
+    return { success: true, novoStatus }
 })

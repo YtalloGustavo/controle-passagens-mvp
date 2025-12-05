@@ -51,6 +51,7 @@ model Usuario {
   perfil     String
   setor      String?
   historicos HistoricoAprovacao[]
+  colaboradores Colaborador[]
 }
 
 model HistoricoAprovacao {
@@ -63,4 +64,16 @@ model HistoricoAprovacao {
   solicitacao    Solicitacao @relation(fields: [solicitacaoId], references: [id])
   usuarioId      Int
   usuario        Usuario     @relation(fields: [usuarioId], references: [id])
+}
+
+model Colaborador {
+  id             Int      @id @default(autoincrement())
+  nome           String
+  cpf            String   @unique
+  dataNascimento DateTime
+  email          String?
+  telefone       String?
+  gestorId       Int
+  gestor         Usuario  @relation(fields: [gestorId], references: [id])
+  criadoEm       DateTime @default(now())
 }
