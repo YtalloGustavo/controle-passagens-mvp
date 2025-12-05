@@ -16,6 +16,27 @@ const form = reactive({
   motivo: ''
 })
 
+// Buscar colaboradores do gestor logado
+const { data: colaboradores } = await useFetch('/api/colaboradores', {
+  query: { usuarioId: usuario.value?.id }
+})
+
+const selecionarColaborador = (event: any) => {
+  const valor = event.target.value
+  if (!valor) {
+    // Limpar se selecionar "Manual"
+    form.nome = ''
+    form.cpf = ''
+    form.dataNascimento = ''
+    return
+  }
+  
+  const colab = JSON.parse(valor)
+  form.nome = colab.nome
+  form.cpf = colab.cpf
+  form.dataNascimento = colab.dataNascimento.split('T')[0] // Ajuste para input date
+}
+
 // --- DADOS DO VOO (Dinâmico) ---
 // Tenta pegar o ID da URL, se não tiver usa o 1 como fallback
 const vagaId = computed(() => route.query.vagaId || 1)
@@ -243,6 +264,15 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
               <div class="text-center">
                 <h2 class="text-2xl font-bold text-slate-800">Dados do Passageiro</h2>
                 <p class="text-slate-500 text-sm mt-1">Informe quem irá viajar.</p>
+              </div>
+
+              <!-- Seleção de Colaborador (Se houver cadastrados) -->
+              <div v-if="colaboradores?.length" class="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
+                <label class="block text-xs font-bold text-blue-600 uppercase mb-2">Selecionar da Equipe</label>
+                <select @change="selecionarColaborador($event)" class="w-full px-4 py-2 rounded-lg border border-blue-200 bg-white text-slate-700 text-sm focus:border-blue-500 outline-none">
+                  <option value="">Preencher manualmente...</option>
+                  <option v-for="c in colaboradores" :key="c.id" :value="JSON.stringify(c)">{{ c.nome }}</option>
+                </select>
               </div>
 
               <div class="space-y-4">
