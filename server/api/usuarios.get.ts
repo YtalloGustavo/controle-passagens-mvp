@@ -15,5 +15,9 @@ export default defineEventHandler(async (event) => {
         }
     })
 
-    return usuarios
+    // Mapeia para o formato esperado pelo frontend (se necessário)
+    return usuarios.map(u => ({
+        ...u,
+        cargo: u.perfil // Mapeando perfil para cargo conforme solicitado
+    }))
 })
