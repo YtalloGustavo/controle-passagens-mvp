@@ -7,16 +7,19 @@ const FLUXO_APROVACAO: Record<string, { proximo: string, perfilNecessario: strin
     // 1. Gestor aprova -> Vai para Passagem
     'ANALISE_GESTOR': { proximo: 'ANALISE_PASSAGEM', perfilNecessario: 'GESTOR' },
 
-    // 2. Passagem aprova -> Vai para Hospedagem [cite: 20]
+    // 2. Passagem aprova -> Vai para Hospedagem
     'ANALISE_PASSAGEM': { proximo: 'ANALISE_HOSPEDAGEM', perfilNecessario: 'PASSAGEM' },
 
-    // 3. Hospedagem aprova -> Vai para Admin [cite: 22]
-    'ANALISE_HOSPEDAGEM': { proximo: 'APROVACAO_ADMIN', perfilNecessario: 'HOSPEDAGEM' },
+    // 3. Hospedagem aprova -> Vai para Verificação de Volta (Passagem novamente)
+    'ANALISE_HOSPEDAGEM': { proximo: 'VERIFICACAO_VOLTA', perfilNecessario: 'HOSPEDAGEM' },
 
-    // 4. Admin aprova -> Vai para Financeiro [cite: 23]
+    // 4. Passagem confirma volta -> Vai para Admin
+    'VERIFICACAO_VOLTA': { proximo: 'APROVACAO_ADMIN', perfilNecessario: 'PASSAGEM' },
+
+    // 5. Admin aprova -> Vai para Financeiro
     'APROVACAO_ADMIN': { proximo: 'ANALISE_FINANCEIRO', perfilNecessario: 'ADMIN' },
 
-    // 5. Financeiro aprova -> FIM (Aprovado)
+    // 6. Financeiro aprova -> FIM (Aprovado)
     'ANALISE_FINANCEIRO': { proximo: 'APROVADO', perfilNecessario: 'FINANCEIRO' }
 }
 

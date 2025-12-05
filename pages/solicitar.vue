@@ -25,7 +25,22 @@ const { data: vagaInfo } = await useFetch(`/api/vagas`)
 const voo = computed(() => {
   // Encontra a vaga específica na lista ou retorna um mock se não achar
   const v = vagaInfo.value?.find((item: any) => item.id == vagaId.value)
+  
   if (v) {
+    // Se a vaga estiver bloqueada, redireciona ou avisa
+    if (v.bloqueado) {
+      return {
+        codigo: 'BLOQUEADO',
+        data: new Date(v.data),
+        origem: '-',
+        destino: '-',
+        partida: '-',
+        chegada: '-',
+        duracao: '-',
+        bloqueado: true
+      }
+    }
+
     return {
       codigo: `FN-${100 + v.id}`,
       data: new Date(v.data),
@@ -33,11 +48,20 @@ const voo = computed(() => {
       destino: v.direcao === 'IDA' ? 'FEN' : 'REC',
       partida: v.direcao === 'IDA' ? '08:00' : '14:30',
       chegada: v.direcao === 'IDA' ? '10:15' : '16:45',
-      duracao: '1h 15m'
+      duracao: '1h 15m',
+      bloqueado: false
     }
   }
-  return { codigo: 'FN-000', data: new Date(), origem: '-', destino: '-', partida: '-', chegada: '-', duracao: '-' }
+  return { codigo: 'FN-000', data: new Date(), origem: '-', destino: '-', partida: '-', chegada: '-', duracao: '-', bloqueado: false }
 })
+
+// Watch para redirecionar se bloqueado
+watch(voo, (novo) => {
+  if (novo.bloqueado) {
+    alert('Esta vaga está bloqueada para manutenção ou evento.')
+    navigateTo('/dashboard')
+  }
+}, { immediate: true })
 
 // --- NAVEGAÇÃO ---
 const avancar = () => {
