@@ -41,7 +41,9 @@ const voo = computed(() => {
 
 // --- NAVEGAÇÃO ---
 const avancar = () => {
-  if (step.value === 2 && (!form.nome || !form.cpf)) return alert('Preencha os dados obrigatórios.')
+  if (step.value === 2) {
+    if (!form.nome || !form.cpf || !form.dataNascimento) return alert('Preencha os dados do passageiro.')
+  }
   step.value++
 }
 
@@ -52,7 +54,7 @@ const voltar = () => {
 
 // --- AÇÃO PRINCIPAL: ENVIAR PARA A API ---
 const enviar = async () => {
-  if (!form.motivo) return alert('Informe o motivo.')
+  if (!form.setor || !form.motivo) return alert('Preencha todos os campos.')
   
   loading.value = true
   erroMsg.value = ''
@@ -175,20 +177,120 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
         <div class="p-8">
           <Transition name="fade" mode="out-in">
             
+            <!-- STEP 1: VOO -->
             <div v-if="step === 1" class="space-y-6">
               <div class="text-center">
                 <h2 class="text-2xl font-bold text-slate-800">Confirme o voo selecionado</h2>
                 <p class="text-slate-500 text-sm mt-1">Verifique os detalhes antes de prosseguir.</p>
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Departamento</label>
-                <div class="relative"><select v-model="form.setor" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white appearance-none focus:border-blue-500 outline-none transition-all font-medium text-slate-600"><option value="" disabled selected>Selecione o setor...</option><option value="TI">Tecnologia</option><option value="RH">RH</option><option value="FIN">Financeiro</option></select><div class="absolute right-4 top-3.5 pointer-events-none text-slate-400">▼</div></div>
               </div>
-              <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Motivo da Viagem</label><textarea v-model="form.motivo" rows="4" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all resize-none font-medium" placeholder="Descreva detalhadamente o motivo..."></textarea></div>
-              <button @click="enviar" :disabled="loading" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-                <span v-if="loading" class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span><span v-else>Finalizar Solicitação</span>
+
+              <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Voo {{ voo.codigo }}</span>
+                  <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{{ formatData(voo.data) }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="text-center">
+                    <p class="text-2xl font-bold text-slate-800">{{ voo.origem }}</p>
+                    <p class="text-sm text-slate-500">{{ voo.partida }}</p>
+                  </div>
+                  <div class="flex-1 px-4 flex flex-col items-center">
+                    <span class="text-xs text-slate-400 font-medium mb-1">{{ voo.duracao }}</span>
+                    <div class="w-full h-0.5 bg-slate-300 relative">
+                      <div class="absolute w-2 h-2 bg-slate-300 rounded-full left-0 -top-[3px]"></div>
+                      <div class="absolute w-2 h-2 bg-slate-300 rounded-full right-0 -top-[3px]"></div>
+                      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-50 px-2 text-slate-400">✈</div>
+                    </div>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-2xl font-bold text-slate-800">{{ voo.destino }}</p>
+                    <p class="text-sm text-slate-500">{{ voo.chegada }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <button @click="avancar" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/20">
+                Continuar
               </button>
+            </div>
+
+            <!-- STEP 2: PASSAGEIRO -->
+            <div v-else-if="step === 2" class="space-y-6">
+              <div class="text-center">
+                <h2 class="text-2xl font-bold text-slate-800">Dados do Passageiro</h2>
+                <p class="text-slate-500 text-sm mt-1">Informe quem irá viajar.</p>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Nome Completo</label>
+                  <input v-model="form.nome" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium" placeholder="Ex: João Silva">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">CPF</label>
+                    <input v-model="form.cpf" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium" placeholder="000.000.000-00">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data de Nascimento</label>
+                    <input v-model="form.dataNascimento" type="date" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium text-slate-600">
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <button @click="voltar" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-xl transition-all">
+                  Voltar
+                </button>
+                <button @click="avancar" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/20">
+                  Continuar
+                </button>
+              </div>
+            </div>
+
+            <!-- STEP 3: MOTIVO -->
+            <div v-else-if="step === 3" class="space-y-6">
+              <div class="text-center">
+                <h2 class="text-2xl font-bold text-slate-800">Detalhes da Solicitação</h2>
+                <p class="text-slate-500 text-sm mt-1">Justifique a necessidade da viagem.</p>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Departamento</label>
+                  <div class="relative">
+                    <select v-model="form.setor" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white appearance-none focus:border-blue-500 outline-none transition-all font-medium text-slate-600">
+                      <option value="" disabled selected>Selecione o setor...</option>
+                      <option value="TI">Tecnologia</option>
+                      <option value="RH">RH</option>
+                      <option value="FIN">Financeiro</option>
+                      <option value="COM">Comercial</option>
+                      <option value="OPS">Operações</option>
+                    </select>
+                    <div class="absolute right-4 top-3.5 pointer-events-none text-slate-400">▼</div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Motivo da Viagem</label>
+                  <textarea v-model="form.motivo" rows="4" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all resize-none font-medium" placeholder="Descreva detalhadamente o motivo..."></textarea>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <button @click="voltar" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-xl transition-all">
+                  Voltar
+                </button>
+                <button @click="enviar" :disabled="loading" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
+                  <span v-if="loading" class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
+                  <span v-else>Finalizar Solicitação</span>
+                </button>
+              </div>
               <p v-if="erroMsg" class="text-center text-red-500 text-sm font-bold">{{ erroMsg }}</p>
             </div>
 
+            <!-- STEP 4: SUCESSO -->
             <div v-else class="text-center py-8">
               <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 animate-bounce">✓</div>
               <h2 class="text-3xl font-bold text-slate-800 mb-2">Sucesso!</h2>

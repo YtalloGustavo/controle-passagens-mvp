@@ -30,12 +30,12 @@ export default defineEventHandler(async (event) => {
 
     const solicitacao = await prisma.solicitacao.findUnique({ where: { id: body.solicitacaoId } })
     if (!solicitacao) {
-        throw createError({ statusCode: 404, statusMessage: `Solicitação ${body.solicitacaoId} não encontrada.` })
+        throw createError({ statusCode: 404, statusMessage: `Solicitação ${body.solicitacaoId} não encontrada` })
     }
 
     const usuario = await prisma.usuario.findUnique({ where: { id: body.usuarioId } })
     if (!usuario) {
-        throw createError({ statusCode: 404, statusMessage: `Usuário com ID ${body.usuarioId} não encontrado.` })
+        throw createError({ statusCode: 404, statusMessage: `Usuário com ID ${body.usuarioId} não encontrado no banco` })
     }
 
     // Lógica de Permissão

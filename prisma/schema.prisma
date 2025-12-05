@@ -30,6 +30,12 @@ model Solicitacao {
   setor           String
   motivo          String
   status          String   @default("ANALISE_GESTOR")
+  
+  // --- NOVOS CAMPOS PARA HOSPEDAGEM ---
+  // Necessários para cumprir o Módulo 4.4 do documento
+  tipoHospedagem  String?  // Ex: 'CASA_FUNCIONAL', 'HOTEL', 'SEM_PERNOITE'
+  infoHospedagem  String?  // Ex: 'Quarto 02' ou 'Pousada X'
+
   vagaId          Int
   vaga            Vaga     @relation(fields: [vagaId], references: [id])
   historico       HistoricoAprovacao[]

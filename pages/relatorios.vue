@@ -65,13 +65,7 @@ const formatData = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day:
         <NuxtLink to="/dashboard" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group">
           <span class="material-icons group-hover:text-blue-400 transition-colors">dashboard</span>
           <span class="font-medium hidden lg:block">Visão Geral</span>
-        </NuxtLink>
-
-        <NuxtLink to="/solicitar" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group">
-          <span class="material-icons group-hover:text-emerald-400 transition-colors">add_circle_outline</span>
-          <span class="font-medium hidden lg:block">Nova Solicitação</span>
-        </NuxtLink>
-        
+        </NuxtLink> 
         <NuxtLink to="/minhas-solicitacoes" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group">
           <span class="material-icons group-hover:text-blue-400 transition-colors">history</span>
           <span class="font-medium hidden lg:block">Minhas Solicitações</span>
