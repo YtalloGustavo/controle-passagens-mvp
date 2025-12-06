@@ -46,7 +46,7 @@ async function run() {
 
         // 4. Aprovar pela Hospedagem (ID 4 - Mariana Hospedagem)
         console.log('\n4. Aprovando pela Hospedagem...');
-        await aprovar(id, 4, 'VERIFICACAO_VOLTA', { tipo: 'CASA_FUNCIONAL', info: 'Casa 01' });
+        await aprovar(id, 4, 'VERIFICACAO_VOLTA', { tipo: 'CASA_FUNCIONAL', info: 'Casa 01 (Via Script)' });
 
         // 5. Confirmar Volta pela Passagem (ID 2 - Ana Passagens)
         console.log('\n5. Confirmando Volta (Passagem)...');
