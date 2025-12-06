@@ -7,6 +7,7 @@ export default defineEventHandler(async (event) => {
         select: {
             id: true,
             nome: true,
+            email: true,
             perfil: true,
             setor: true
         },

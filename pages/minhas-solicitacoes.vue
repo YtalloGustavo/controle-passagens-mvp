@@ -81,6 +81,60 @@ const getStepColor = (tipo: string) => {
   if (tipo === 'negado') return 'bg-rose-500 border-rose-500 ring-4 ring-rose-50'
   return 'bg-slate-200 border-slate-200'
 }
+
+// --- CRUD ---
+const modalAberto = ref(false)
+const formEdicao = ref({
+  id: 0,
+  nomePassageiro: '',
+  cpfPassageiro: '',
+  dataNascimento: '',
+  motivo: ''
+})
+
+const abrirEdicao = (pedido: any) => {
+  formEdicao.value = {
+    id: pedido.id,
+    nomePassageiro: pedido.nomePassageiro,
+    cpfPassageiro: pedido.cpfPassageiro,
+    dataNascimento: pedido.dataNascimento ? pedido.dataNascimento.split('T')[0] : '',
+    motivo: pedido.motivo
+  }
+  modalAberto.value = true
+}
+
+const fecharModal = () => {
+  modalAberto.value = false
+}
+
+const salvarEdicao = async () => {
+  try {
+    await $fetch('/api/solicitacoes', {
+      method: 'PUT',
+      body: formEdicao.value
+    })
+    alert('Solicitação atualizada!')
+    modalAberto.value = false
+    refresh()
+  } catch (error: any) {
+    alert('Erro ao atualizar: ' + (error.data?.statusMessage || error.message))
+  }
+}
+
+const excluirSolicitacao = async (id: number) => {
+  if (!confirm('Tem certeza que deseja cancelar esta solicitação?')) return
+
+  try {
+    await $fetch('/api/solicitacoes', {
+      method: 'DELETE',
+      body: { id }
+    })
+    alert('Solicitação cancelada!')
+    refresh()
+  } catch (error: any) {
+    alert('Erro ao cancelar: ' + (error.data?.statusMessage || error.message))
+  }
+}
 </script>
 
 <template>
@@ -130,6 +184,33 @@ const getStepColor = (tipo: string) => {
           <span class="material-icons group-hover:text-cyan-400 transition-colors">bar_chart</span>
           <span class="font-medium hidden lg:block">Relatórios</span>
         </NuxtLink>
+
+        <NuxtLink 
+          v-if="['GESTOR', 'ADMIN', 'MASTER'].includes(usuario?.perfil || '')"
+          to="/gestor/colaboradores" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-amber-400 transition-colors">people</span>
+          <span class="font-medium hidden lg:block">Minha Equipe</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          v-if="usuario?.perfil === 'MASTER'"
+          to="/admin/vagas" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-rose-400 transition-colors">lock_clock</span>
+          <span class="font-medium hidden lg:block">Gerenciar Vagas</span>
+        </NuxtLink>
+
+        <NuxtLink 
+          v-if="['ADMIN', 'MASTER'].includes(usuario?.perfil || '')"
+          to="/admin/usuarios" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-slate-200 transition-colors">people_alt</span>
+          <span class="font-medium hidden lg:block">Usuários</span>
+        </NuxtLink>
       </nav>
 
       <div class="p-4 mt-auto border-t border-slate-800/50 bg-[#0B1120]">
@@ -150,9 +231,14 @@ const getStepColor = (tipo: string) => {
           <h2 class="text-3xl font-extrabold text-slate-900">Acompanhamento</h2>
           <p class="text-slate-500 mt-1">Gerencie o status dos seus pedidos de viagem.</p>
         </div>
-        <button @click="() => refresh()" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
-          <span class="material-icons text-sm">refresh</span> Atualizar
-        </button>
+        <div class="flex gap-3">
+          <NuxtLink to="/solicitar" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all active:scale-95">
+            <span class="material-icons text-sm">add</span> Nova Solicitação
+          </NuxtLink>
+          <button @click="() => refresh()" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+            <span class="material-icons text-sm">refresh</span> Atualizar
+          </button>
+        </div>
       </header>
 
       <div v-if="pending" class="text-center py-20">
@@ -199,13 +285,28 @@ const getStepColor = (tipo: string) => {
                 </p>
               </div>
               
-              <span 
-                class="px-4 py-2 rounded-lg text-xs font-bold border uppercase tracking-wide flex items-center gap-2 shadow-sm"
-                :class="getStatusBadge(pedido.status)"
-              >
-                <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span>
-                {{ getStatusLabel(pedido.status) }}
-              </span>
+              <div class="flex items-center gap-3">
+                <span 
+                  class="px-4 py-2 rounded-lg text-xs font-bold border uppercase tracking-wide flex items-center gap-2 shadow-sm"
+                  :class="getStatusBadge(pedido.status)"
+                >
+                  <span class="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+                  {{ getStatusLabel(pedido.status) }}
+                </span>
+
+                <!-- AÇÕES CRUD -->
+                <div class="flex gap-2">
+                  <!-- Editar: Apenas se estiver em análise inicial -->
+                  <button v-if="pedido.status === 'ANALISE_GESTOR'" @click="abrirEdicao(pedido)" class="p-2 bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 rounded-lg transition-colors" title="Editar">
+                    <span class="material-icons text-sm">edit</span>
+                  </button>
+                  
+                  <!-- Excluir: Sempre disponível -->
+                  <button @click="excluirSolicitacao(pedido.id)" class="p-2 bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition-colors" title="Cancelar">
+                    <span class="material-icons text-sm">delete</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -246,6 +347,48 @@ const getStepColor = (tipo: string) => {
       </div>
 
     </main>
+
+    <!-- MODAL DE EDIÇÃO -->
+    <div v-if="modalAberto" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="fecharModal"></div>
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-scale-up">
+        <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+          <h3 class="font-bold text-lg text-slate-800">Editar Solicitação</h3>
+          <button @click="fecharModal" class="text-slate-400 hover:text-slate-600"><span class="material-icons">close</span></button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Nome do Passageiro</label>
+            <input v-model="formEdicao.nomePassageiro" type="text" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">CPF</label>
+              <input v-model="formEdicao.cpfPassageiro" type="text" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Data Nascimento</label>
+              <input v-model="formEdicao.dataNascimento" type="date" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Motivo da Viagem</label>
+            <textarea v-model="formEdicao.motivo" rows="3" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <button @click="fecharModal" class="px-4 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Cancelar</button>
+          <button @click="salvarEdicao" class="px-6 py-2 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -267,6 +410,14 @@ const getStepColor = (tipo: string) => {
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.99); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
 </style>
