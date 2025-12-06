@@ -3,14 +3,31 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 export default defineEventHandler(async (event) => {
-    const body = await readBody(event)
+    // Tenta ler do body (se houver) ou da query string
+    let id = null
+    console.log('--- DELETE REQUEST RECEIVED ---')
+    try {
+        const body = await readBody(event)
+        console.log('Body:', body)
+        id = body?.id
+    } catch (e) {
+        // Body pode estar vazio em DELETE
+    }
 
-    if (!body.id) {
+    if (!id) {
+        const query = getQuery(event)
+        console.log('Query:', query)
+        id = query.id
+    }
+
+    console.log('Resolved ID:', id)
+
+    if (!id) {
         throw createError({ statusCode: 400, statusMessage: 'ID da solicitação é obrigatório.' })
     }
 
     const solicitacao = await prisma.solicitacao.findUnique({
-        where: { id: Number(body.id) }
+        where: { id: Number(id) }
     })
 
     if (!solicitacao) {
@@ -38,12 +55,12 @@ export default defineEventHandler(async (event) => {
 
         // 2. Excluir Históricos
         await prisma.historicoAprovacao.deleteMany({
-            where: { solicitacaoId: Number(body.id) }
+            where: { solicitacaoId: Number(id) }
         })
 
         // 3. Excluir Solicitação
         await prisma.solicitacao.delete({
-            where: { id: Number(body.id) }
+            where: { id: Number(id) }
         })
 
         return { message: 'Solicitação excluída com sucesso!' }

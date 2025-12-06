@@ -8,6 +8,7 @@ export default defineEventHandler(async () => {
     const solicitacoes = await prisma.solicitacao.findMany({
         include: {
             vaga: true, // Importante: Traz a data e direção do voo junto
+            vagaVolta: true, // Adicionado para trazer dados da volta
             historico: true // Traz o histórico de aprovações
         },
         orderBy: {

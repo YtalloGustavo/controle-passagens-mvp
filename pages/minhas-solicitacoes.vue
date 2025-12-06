@@ -83,6 +83,7 @@ const getStepColor = (tipo: string) => {
 }
 
 // --- CRUD ---
+const excluindoIds = ref(new Set<number>())
 const modalAberto = ref(false)
 const formEdicao = ref({
   id: 0,
@@ -124,15 +125,19 @@ const salvarEdicao = async () => {
 const excluirSolicitacao = async (id: number) => {
   if (!confirm('Tem certeza que deseja cancelar esta solicitação?')) return
 
+  excluindoIds.value.add(id)
   try {
-    await $fetch('/api/solicitacoes', {
-      method: 'DELETE',
-      body: { id }
+    // Forçando a query string na URL para garantir que o ID chegue ao backend
+    // params: { id } as vezes é ignorado em DELETE dependendo da versão do fetch/nuxt
+    await $fetch(`/api/solicitacoes?id=${id}`, {
+      method: 'DELETE'
     })
     alert('Solicitação cancelada!')
     refresh()
   } catch (error: any) {
     alert('Erro ao cancelar: ' + (error.data?.statusMessage || error.message))
+  } finally {
+    excluindoIds.value.delete(id)
   }
 }
 </script>
@@ -305,8 +310,14 @@ const excluirSolicitacao = async (id: number) => {
                   </button>
                   
                   <!-- Excluir: Sempre disponível -->
-                  <button @click="excluirSolicitacao(pedido.id)" class="p-2 bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition-colors" title="Cancelar">
-                    <span class="material-icons text-sm">delete</span>
+                  <button 
+                    @click="excluirSolicitacao(pedido.id)" 
+                    :disabled="excluindoIds.has(pedido.id)"
+                    class="p-2 bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                    title="Cancelar"
+                  >
+                    <span v-if="excluindoIds.has(pedido.id)" class="material-icons text-sm animate-spin">sync</span>
+                    <span v-else class="material-icons text-sm">delete</span>
                   </button>
                 </div>
               </div>
