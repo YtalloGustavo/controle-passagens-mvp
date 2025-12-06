@@ -20,6 +20,7 @@ const { usuario } = useAuth() // Apenas para referência visual se necessário
 
 // --- ESTADOS ---
 const processando = ref<number | null>(null)
+const dadosHospedagem = reactive<Record<number, { tipo: string, info: string }>>({})
 
 // --- SIMULADOR DE PERFIL (Dinâmico) ---
 const { data: usuariosDb } = await useFetch('/api/usuarios')
@@ -32,9 +33,6 @@ watch(perfis, (novos) => {
     perfilAtual.value = novos[0]?.id || 0
   }
 }, { immediate: true })
-
-// Estado para o formulário de hospedagem
-const formHospedagem = reactive({ tipo: 'CASA_FUNCIONAL', info: '' })
 
 // --- LÓGICA DE FILTRAGEM (Quem vê o quê) ---
 const pendencias = computed(() => {
@@ -72,15 +70,18 @@ const processar = async (id: number, acao: 'APROVAR' | 'NEGAR') => {
 
   // Se for a Mariana (Hospedagem) a aprovar, precisamos saber ONDE o funcionário fica
   if (acao === 'APROVAR' && cargo === 'HOSPEDAGEM') {
-    // const info = prompt('Informe os detalhes da hospedagem (Ex: Casa Funcional 01 ou Hotel X):', 'Casa Funcional')
-    const info = 'Casa Funcional 01' // Hardcoded for testing
-    if (!info) return // Cancela se não preencher
-    detalhesHospedagem = { tipo: 'DEFINIDO_PELO_GERENTE', info: info }
+    const dados = dadosHospedagem[id] || { tipo: 'CASA_FUNCIONAL', info: '' }
+    
+    if (!dados.info) {
+      alert('Por favor, informe os detalhes da hospedagem (ex: Quarto 01, Hotel X).')
+      return
+    }
+    
+    detalhesHospedagem = { 
+      tipo: dados.tipo, 
+      info: dados.info 
+    }
   } 
-  // Confirmação padrão para os outros
-  // else if (!confirm(`Tem certeza que deseja ${acao === 'APROVAR' ? 'Aprovar' : 'Rejeitar'} esta solicitação?`)) {
-  //   return
-  // }
 
   processando.value = id
   try {
@@ -96,6 +97,9 @@ const processar = async (id: number, acao: 'APROVAR' | 'NEGAR') => {
     })
     
     await refresh() // Atualiza a lista
+    
+    // Limpar dados do form
+    if (dadosHospedagem[id]) delete dadosHospedagem[id]
     
   } catch (error: any) {
     alert('Erro: ' + (error.data?.statusMessage || 'Falha ao processar.'))
@@ -227,24 +231,53 @@ const formatData = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR',
             </div>
           </div>
 
-          <div class="flex gap-3 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-0 border-slate-100">
-            <button 
-              @click="processar(pedido.id, 'NEGAR')"
-              :disabled="processando === pedido.id"
-              class="flex-1 lg:flex-none px-6 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all text-sm disabled:opacity-50"
+          <div class="flex flex-col gap-3 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-0 border-slate-100">
+            
+            <!-- FORMULÁRIO DE HOSPEDAGEM (Apenas para perfil HOSPEDAGEM) -->
+            <div 
+              v-if="perfis.find((p: any) => p.id === perfilAtual)?.perfil === 'HOSPEDAGEM'"
+              class="flex flex-col gap-2 bg-indigo-50 p-3 rounded-xl border border-indigo-100"
             >
-              Recusar
-            </button>
-            <button 
-              @click="processar(pedido.id, 'APROVAR')"
-              :disabled="processando === pedido.id"
-              class="flex-1 lg:flex-none px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:translate-y-0"
-            >
-              <span v-if="processando === pedido.id" class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
-              <span v-else>
-                {{ perfis.find((p: any) => p.id === perfilAtual)?.perfil === 'HOSPEDAGEM' ? 'Definir & Aprovar' : 'Aprovar' }}
-              </span>
-            </button>
+              <p class="text-[10px] font-bold text-indigo-500 uppercase">Definir Acomodação</p>
+              <div class="flex gap-2">
+                <select 
+                  :value="dadosHospedagem[pedido.id]?.tipo || 'CASA_FUNCIONAL'"
+                  @input="(e: any) => { if(!dadosHospedagem[pedido.id]) dadosHospedagem[pedido.id] = { tipo: 'CASA_FUNCIONAL', info: '' }; dadosHospedagem[pedido.id].tipo = e.target.value }"
+                  class="px-2 py-1.5 rounded-lg border border-indigo-200 text-xs font-bold text-indigo-700 bg-white outline-none focus:border-indigo-500"
+                >
+                  <option value="CASA_FUNCIONAL">Casa Funcional</option>
+                  <option value="HOTEL">Hotel</option>
+                  <option value="SEM_PERNOITE">Sem Pernoite</option>
+                </select>
+                <input 
+                  type="text" 
+                  placeholder="Detalhes (Ex: Quarto 01)"
+                  :value="dadosHospedagem[pedido.id]?.info || ''"
+                  @input="(e: any) => { if(!dadosHospedagem[pedido.id]) dadosHospedagem[pedido.id] = { tipo: 'CASA_FUNCIONAL', info: '' }; dadosHospedagem[pedido.id].info = e.target.value }"
+                  class="flex-1 px-3 py-1.5 rounded-lg border border-indigo-200 text-xs font-medium outline-none focus:border-indigo-500"
+                >
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <button 
+                @click="processar(pedido.id, 'NEGAR')"
+                :disabled="processando === pedido.id"
+                class="flex-1 lg:flex-none px-6 py-3 rounded-xl border border-slate-200 text-slate-500 font-bold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all text-sm disabled:opacity-50"
+              >
+                Recusar
+              </button>
+              <button 
+                @click="processar(pedido.id, 'APROVAR')"
+                :disabled="processando === pedido.id"
+                class="flex-1 lg:flex-none px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:translate-y-0"
+              >
+                <span v-if="processando === pedido.id" class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                <span v-else>
+                  {{ perfis.find((p: any) => p.id === perfilAtual)?.perfil === 'HOSPEDAGEM' ? 'Confirmar' : 'Aprovar' }}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
