@@ -17,7 +17,8 @@ model Vaga {
   bloqueado        Boolean  @default(false)
   criadoEm         DateTime @default(now())
   atualizadoEm     DateTime @updatedAt
-  solicitacoes     Solicitacao[]
+  solicitacoesIda   Solicitacao[] @relation("VagaIda")
+  solicitacoesVolta Solicitacao[] @relation("VagaVolta")
 
   @@unique([data, direcao])
 }
@@ -35,9 +36,14 @@ model Solicitacao {
   // Necessários para cumprir o Módulo 4.4 do documento
   tipoHospedagem  String?  // Ex: 'CASA_FUNCIONAL', 'HOTEL', 'SEM_PERNOITE'
   infoHospedagem  String?  // Ex: 'Quarto 02' ou 'Pousada X'
+  preco           Float    @default(0.0) // Custo da passagem/viagem
 
   vagaId          Int
-  vaga            Vaga     @relation(fields: [vagaId], references: [id])
+  vaga            Vaga     @relation("VagaIda", fields: [vagaId], references: [id])
+  
+  vagaVoltaId     Int?
+  vagaVolta       Vaga?    @relation("VagaVolta", fields: [vagaVoltaId], references: [id])
+
   historico       HistoricoAprovacao[]
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt

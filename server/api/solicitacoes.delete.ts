@@ -21,12 +21,27 @@ export default defineEventHandler(async (event) => {
     // if (solicitacao.status !== 'ANALISE_GESTOR') { ... }
 
     try {
-        // Primeiro exclui históricos associados (se houver, por integridade)
+        // 1. Atualizar Vagas (Liberar espaço)
+        // Vaga de Ida
+        await prisma.vaga.update({
+            where: { id: solicitacao.vagaId },
+            data: { vagasOcupadas: { decrement: 1 } }
+        })
+
+        // Vaga de Volta (se houver)
+        if (solicitacao.vagaVoltaId) {
+            await prisma.vaga.update({
+                where: { id: solicitacao.vagaVoltaId },
+                data: { vagasOcupadas: { decrement: 1 } }
+            })
+        }
+
+        // 2. Excluir Históricos
         await prisma.historicoAprovacao.deleteMany({
             where: { solicitacaoId: Number(body.id) }
         })
 
-        // Depois exclui a solicitação
+        // 3. Excluir Solicitação
         await prisma.solicitacao.delete({
             where: { id: Number(body.id) }
         })

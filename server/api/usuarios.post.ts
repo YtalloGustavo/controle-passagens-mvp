@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -27,11 +28,14 @@ export default defineEventHandler(async (event) => {
 
     // 3. Criar Usuário
     try {
+        const salt = bcrypt.genSaltSync(10)
+        const hash = bcrypt.hashSync(body.senha, salt)
+
         const novoUsuario = await prisma.usuario.create({
             data: {
                 nome: body.nome,
                 email: body.email,
-                senha: body.senha, // TODO: Hash da senha em produção
+                senha: hash,
                 perfil: body.perfil,
                 setor: body.setor || null
             }
