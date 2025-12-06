@@ -125,6 +125,15 @@ const alternarBloqueio = async (vaga: any) => {
           <span class="material-icons group-hover:text-rose-400 transition-colors">lock_clock</span>
           <span class="font-medium hidden lg:block">Gerenciar Vagas</span>
         </NuxtLink>
+
+        <NuxtLink 
+          v-if="['ADMIN', 'MASTER'].includes(usuario?.perfil || '')"
+          to="/admin/usuarios" 
+          class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group"
+        >
+          <span class="material-icons group-hover:text-slate-200 transition-colors">people_alt</span>
+          <span class="font-medium hidden lg:block">Usuários</span>
+        </NuxtLink>
       </nav>
 
       <div class="p-4 mt-auto border-t border-slate-800/50 bg-[#0B1120]">

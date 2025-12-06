@@ -98,6 +98,11 @@ const fazerLogin = async () => {
               placeholder="••••••••"
             />
           </div>
+          <div class="flex justify-end mt-1">
+            <NuxtLink to="/recuperar-senha" class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline">
+              Esqueci minha senha
+            </NuxtLink>
+          </div>
         </div>
 
         <button 
