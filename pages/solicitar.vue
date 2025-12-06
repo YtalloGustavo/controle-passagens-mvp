@@ -1,145 +1,132 @@
 <script setup lang="ts">
-const route = useRoute() // Para pegar o ID da URL
+// --- ESTADO ---
 const { usuario } = useAuth()
+const router = useRouter()
 
-// --- ESTADOS ---
-const step = ref(1)
-const loading = ref(false)
-const erroMsg = ref('')
+// Controle de Tipo de Viagem
+const tipoViagem = ref<'IDA' | 'IDA_VOLTA'>('IDA')
 
-// --- DADOS FORM ---
-const form = reactive({
+// Vagas
+const dataViagem = ref('')
+const dataVolta = ref('') // Nova data para volta
+const vagasDisponiveis = ref<any[]>([])
+const vagasVoltaDisponiveis = ref<any[]>([]) // Vagas para volta
+const vagaSelecionada = ref<number | null>(null)
+const vagaVoltaSelecionada = ref<number | null>(null) // ID da vaga de volta
+
+// Colaborador
+const colaboradores = ref<any[]>([])
+const colaboradorSelecionado = ref<number | null>(null)
+
+// Formulário
+const form = ref({
   nome: '',
   cpf: '',
   dataNascimento: '',
-  setor: '',
+  setor: usuario.value?.setor || '',
   motivo: ''
 })
 
-// Buscar colaboradores do gestor logado
-const { data: colaboradores } = await useFetch('/api/colaboradores', {
-  query: { usuarioId: usuario.value?.id }
+const carregando = ref(false)
+const erro = ref('')
+
+// --- BUSCAS ---
+// Busca colaboradores do gestor
+const carregarColaboradores = async () => {
+  if (['GESTOR', 'ADMIN', 'MASTER'].includes(usuario.value?.perfil || '')) {
+    const { data } = await useFetch('/api/colaboradores')
+    colaboradores.value = data.value || []
+  }
+}
+
+// Busca vagas de IDA
+const buscarVagas = async () => {
+  if (!dataViagem.value) return
+  
+  const { data } = await useFetch('/api/vagas/disponibilidade', {
+    query: { data: dataViagem.value, direcao: 'IDA' }
+  })
+  
+  // Filtra apenas vagas não bloqueadas e com disponibilidade
+  vagasDisponiveis.value = (data.value as any[] || []).filter(v => !v.bloqueado && v.vagasDisponiveis > v.vagasOcupadas)
+}
+
+// Busca vagas de VOLTA
+const buscarVagasVolta = async () => {
+  if (!dataVolta.value) return
+  
+  const { data } = await useFetch('/api/vagas/disponibilidade', {
+    query: { data: dataVolta.value, direcao: 'VOLTA' }
+  })
+  
+  vagasVoltaDisponiveis.value = (data.value as any[] || []).filter(v => !v.bloqueado && v.vagasDisponiveis > v.vagasOcupadas)
+}
+
+// Preenche dados ao selecionar colaborador
+watch(colaboradorSelecionado, (novoId) => {
+  if (novoId) {
+    const colab = colaboradores.value.find(c => c.id === novoId)
+    if (colab) {
+      form.value.nome = colab.nome
+      form.value.cpf = colab.cpf
+      form.value.dataNascimento = colab.dataNascimento.split('T')[0]
+    }
+  } else {
+    // Limpa se desmarcar (opcional)
+  }
 })
 
-const selecionarColaborador = (event: any) => {
-  const valor = event.target.value
-  if (!valor) {
-    // Limpar se selecionar "Manual"
-    form.nome = ''
-    form.cpf = ''
-    form.dataNascimento = ''
+// Monitora datas para buscar vagas
+watch(dataViagem, buscarVagas)
+watch(dataVolta, buscarVagasVolta)
+
+// --- AÇÕES ---
+const enviarSolicitacao = async () => {
+  erro.value = ''
+  
+  if (!vagaSelecionada.value) {
+    erro.value = 'Selecione um voo de ida.'
     return
   }
-  
-  const colab = JSON.parse(valor)
-  form.nome = colab.nome
-  form.cpf = colab.cpf
-  form.dataNascimento = colab.dataNascimento.split('T')[0] // Ajuste para input date
-}
 
-// --- DADOS DO VOO (Dinâmico) ---
-// Tenta pegar o ID da URL, se não tiver usa o 1 como fallback
-const vagaId = computed(() => route.query.vagaId || 1)
-
-// Buscamos os dados reais dessa vaga na API para mostrar no bilhete
-const { data: vagaInfo } = await useFetch(`/api/vagas`)
-const voo = computed(() => {
-  // Encontra a vaga específica na lista ou retorna um mock se não achar
-  const v = vagaInfo.value?.find((item: any) => item.id == vagaId.value)
-  
-  if (v) {
-    // Se a vaga estiver bloqueada, redireciona ou avisa
-    if (v.bloqueado) {
-      return {
-        codigo: 'BLOQUEADO',
-        data: new Date(v.data),
-        origem: '-',
-        destino: '-',
-        partida: '-',
-        chegada: '-',
-        duracao: '-',
-        bloqueado: true
-      }
-    }
-
-    return {
-      codigo: `FN-${100 + v.id}`,
-      data: new Date(v.data),
-      origem: v.direcao === 'IDA' ? 'REC' : 'FEN',
-      destino: v.direcao === 'IDA' ? 'FEN' : 'REC',
-      partida: v.direcao === 'IDA' ? '08:00' : '14:30',
-      chegada: v.direcao === 'IDA' ? '10:15' : '16:45',
-      duracao: '1h 15m',
-      bloqueado: false
-    }
+  if (tipoViagem.value === 'IDA_VOLTA' && !vagaVoltaSelecionada.value) {
+    erro.value = 'Selecione um voo de volta.'
+    return
   }
-  return { codigo: 'FN-000', data: new Date(), origem: '-', destino: '-', partida: '-', chegada: '-', duracao: '-', bloqueado: false }
-})
 
-// Watch para redirecionar se bloqueado
-watch(voo, (novo) => {
-  if (novo.bloqueado) {
-    alert('Esta vaga está bloqueada para manutenção ou evento.')
-    navigateTo('/dashboard')
-  }
-}, { immediate: true })
-
-// --- NAVEGAÇÃO ---
-const avancar = () => {
-  if (step.value === 2) {
-    if (!form.nome || !form.cpf || !form.dataNascimento) return alert('Preencha os dados do passageiro.')
-  }
-  step.value++
-}
-
-const voltar = () => {
-  if (step.value > 1) step.value--
-  else navigateTo('/dashboard')
-}
-
-// --- AÇÃO PRINCIPAL: ENVIAR PARA A API ---
-const enviar = async () => {
-  if (!form.setor || !form.motivo) return alert('Preencha todos os campos.')
-  
-  loading.value = true
-  erroMsg.value = ''
+  carregando.value = true
 
   try {
-    // CHAMA O NOSSO BACKEND NOVO
-    const res = await $fetch('/api/solicitacoes', {
+    await $fetch('/api/solicitacoes', {
       method: 'POST',
       body: {
-        vagaId: Number(vagaId.value),
-        nome: form.nome,
-        cpf: form.cpf,
-        dataNascimento: form.dataNascimento,
-        setor: form.setor,
-        motivo: form.motivo
+        ...form.value,
+        vagaId: vagaSelecionada.value,
+        vagaVoltaId: tipoViagem.value === 'IDA_VOLTA' ? vagaVoltaSelecionada.value : null
       }
     })
-
-    // Sucesso!
-    step.value = 4
-  } catch (error: any) {
-    console.error(error)
-    erroMsg.value = error.statusMessage || 'Erro ao processar solicitação.'
-    alert(erroMsg.value)
+    
+    alert('Solicitação enviada com sucesso!')
+    router.push('/minhas-solicitacoes')
+  } catch (e: any) {
+    erro.value = e.data?.statusMessage || 'Erro ao enviar solicitação.'
   } finally {
-    loading.value = false
+    carregando.value = false
   }
 }
 
-// --- UTILITÁRIOS ---
-const steps = ['Voo', 'Passageiro', 'Motivo', 'Conclusão']
-const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : '-'
+onMounted(() => {
+  carregarColaboradores()
+})
 </script>
 
 <template>
   <div class="min-h-screen bg-[#F3F4F6] flex font-sans text-slate-800">
     
-    <!-- Sidebar -->
+    <!-- Sidebar (Simplificada para brevidade, idealmente um componente) -->
     <aside class="w-20 lg:w-72 bg-[#0F172A] text-white flex flex-col fixed h-full z-50 shadow-2xl border-r border-slate-800">
-      <div class="h-24 flex items-center px-6 relative overflow-hidden">
+       <!-- ... (Sidebar content kept same as dashboard/others) ... -->
+       <div class="h-24 flex items-center px-6 relative overflow-hidden">
         <div class="absolute top-0 left-10 w-20 h-20 bg-blue-500/20 blur-[40px] rounded-full pointer-events-none"></div>
         <div class="z-10 flex items-center gap-4">
           <div class="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl flex items-center justify-center text-lg shadow-lg shadow-blue-500/30">
@@ -158,7 +145,7 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
           <span class="font-medium hidden lg:block">Visão Geral</span>
         </NuxtLink>
 
-        <NuxtLink to="/solicitar" class="flex items-center gap-4 px-4 py-3.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-900/50 transition-all group">
+        <NuxtLink to="/solicitar" class="flex items-center gap-4 px-4 py-3.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-900/50 transition-all group">
           <span class="material-icons">add_circle_outline</span>
           <span class="font-medium hidden lg:block">Nova Solicitação</span>
         </NuxtLink>
@@ -167,8 +154,9 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
           <span class="material-icons group-hover:text-blue-400 transition-colors">history</span>
           <span class="font-medium hidden lg:block">Minhas Solicitações</span>
         </NuxtLink>
-
-        <NuxtLink to="/aprovacoes" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group border-t border-slate-700/50 mt-4">
+        
+        <!-- Outros links... -->
+         <NuxtLink to="/aprovacoes" class="flex items-center gap-4 px-4 py-3.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-all group border-t border-slate-700/50 mt-4">
           <span class="material-icons group-hover:text-indigo-400 transition-colors">gavel</span>
           <span class="font-medium hidden lg:block">Sala de Comando</span>
         </NuxtLink>
@@ -182,7 +170,7 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
           <span class="font-medium hidden lg:block">Relatórios</span>
         </NuxtLink>
       </nav>
-
+      
       <div class="p-4 mt-auto border-t border-slate-800/50 bg-[#0B1120]">
         <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
           <img :src="`https://ui-avatars.com/api/?name=${usuario?.nome || 'User'}&background=3b82f6&color=fff`" class="w-9 h-9 rounded-full ring-2 ring-slate-700" alt="User">
@@ -194,177 +182,225 @@ const formatData = (d: Date) => d ? d.toLocaleDateString('pt-BR', { day: '2-digi
       </div>
     </aside>
 
-    <main class="flex-1 ml-20 lg:ml-72 p-6 lg:p-10 max-w-[1920px] relative flex items-center justify-center">
+    <main class="flex-1 ml-20 lg:ml-72 p-6 lg:p-10 max-w-[1920px] relative">
       
-      <div class="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
+      <header class="mb-10 animate-slide-down">
+        <h2 class="text-3xl font-extrabold text-slate-900">Nova Solicitação</h2>
+        <p class="text-slate-500 mt-1">Preencha os dados para solicitar uma viagem.</p>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <div class="bg-slate-50 border-b border-slate-100 p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h1 class="text-xl font-bold text-slate-800">Nova Solicitação</h1>
-            <button @click="voltar" class="text-sm text-slate-500 hover:text-slate-800 font-medium">
-              {{ step === 1 ? 'Cancelar' : 'Voltar' }}
-            </button>
+        <!-- Coluna 1: Dados do Passageiro -->
+        <div class="lg:col-span-2 space-y-8">
+          
+          <!-- Seleção de Colaborador (Se Gestor) -->
+          <div v-if="colaboradores.length > 0" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+            <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span class="material-icons text-blue-500">people</span> Selecionar Colaborador
+            </h3>
+            <select v-model="colaboradorSelecionado" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
+              <option :value="null">-- Preencher Manualmente --</option>
+              <option v-for="c in colaboradores" :key="c.id" :value="c.id">
+                {{ c.nome }} (CPF: {{ c.cpf }})
+              </option>
+            </select>
           </div>
 
-          <div class="relative flex justify-between items-center">
-            <div class="absolute left-0 top-1/2 w-full h-0.5 bg-slate-200 -z-0"></div>
-            <div v-for="(label, index) in steps" :key="index" class="relative z-10 flex flex-col items-center bg-slate-50 px-2">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 border-2"
-                :class="(index + 1) <= step ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300 text-slate-400'">
-                {{ (index + 1) < step ? '✓' : index + 1 }}
-              </div>
-              <span class="text-[10px] font-bold uppercase mt-2 tracking-wider transition-colors duration-300"
-                :class="(index + 1) <= step ? 'text-blue-600' : 'text-slate-400'">{{ label }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="p-8">
-          <Transition name="fade" mode="out-in">
+          <!-- Formulário Principal -->
+          <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 animate-fade-in">
+            <h3 class="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2">
+              <span class="material-icons text-blue-500">person</span> Dados do Passageiro
+            </h3>
             
-            <!-- STEP 1: VOO -->
-            <div v-if="step === 1" class="space-y-6">
-              <div class="text-center">
-                <h2 class="text-2xl font-bold text-slate-800">Confirme o voo selecionado</h2>
-                <p class="text-slate-500 text-sm mt-1">Verifique os detalhes antes de prosseguir.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-2">Nome Completo</label>
+                <input v-model="form.nome" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Ex: João Silva">
+              </div>
+              
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-2">CPF</label>
+                <input v-model="form.cpf" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="000.000.000-00">
               </div>
 
-              <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                <div class="flex justify-between items-center mb-4">
-                  <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Voo {{ voo.codigo }}</span>
-                  <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{{ formatData(voo.data) }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="text-center">
-                    <p class="text-2xl font-bold text-slate-800">{{ voo.origem }}</p>
-                    <p class="text-sm text-slate-500">{{ voo.partida }}</p>
-                  </div>
-                  <div class="flex-1 px-4 flex flex-col items-center">
-                    <span class="text-xs text-slate-400 font-medium mb-1">{{ voo.duracao }}</span>
-                    <div class="w-full h-0.5 bg-slate-300 relative">
-                      <div class="absolute w-2 h-2 bg-slate-300 rounded-full left-0 -top-[3px]"></div>
-                      <div class="absolute w-2 h-2 bg-slate-300 rounded-full right-0 -top-[3px]"></div>
-                      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-50 px-2 text-slate-400">✈</div>
-                    </div>
-                  </div>
-                  <div class="text-center">
-                    <p class="text-2xl font-bold text-slate-800">{{ voo.destino }}</p>
-                    <p class="text-sm text-slate-500">{{ voo.chegada }}</p>
-                  </div>
-                </div>
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-2">Data de Nascimento</label>
+                <input v-model="form.dataNascimento" type="date" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
               </div>
 
-              <button @click="avancar" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/20">
-                Continuar
-              </button>
-            </div>
-
-            <!-- STEP 2: PASSAGEIRO -->
-            <div v-else-if="step === 2" class="space-y-6">
-              <div class="text-center">
-                <h2 class="text-2xl font-bold text-slate-800">Dados do Passageiro</h2>
-                <p class="text-slate-500 text-sm mt-1">Informe quem irá viajar.</p>
-              </div>
-
-              <!-- Seleção de Colaborador (Se houver cadastrados) -->
-              <div v-if="colaboradores?.length" class="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
-                <label class="block text-xs font-bold text-blue-600 uppercase mb-2">Selecionar da Equipe</label>
-                <select @change="selecionarColaborador($event)" class="w-full px-4 py-2 rounded-lg border border-blue-200 bg-white text-slate-700 text-sm focus:border-blue-500 outline-none">
-                  <option value="">Preencher manualmente...</option>
-                  <option v-for="c in colaboradores" :key="c.id" :value="JSON.stringify(c)">{{ c.nome }}</option>
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-2">Setor</label>
+                <select v-model="form.setor" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                  <option value="" disabled>Selecione um setor</option>
+                  <option value="TI">TI</option>
+                  <option value="RH">RH</option>
+                  <option value="Financeiro">Financeiro</option>
+                  <option value="Comercial">Comercial</option>
+                  <option value="Operacional">Operacional</option>
+                  <option value="Diretoria">Diretoria</option>
+                  <option value="Administrativo">Administrativo</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Logística">Logística</option>
+                  <option value="Jurídico">Jurídico</option>
                 </select>
               </div>
-
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Nome Completo</label>
-                  <input v-model="form.nome" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium" placeholder="Ex: João Silva">
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">CPF</label>
-                    <input v-model="form.cpf" type="text" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium" placeholder="000.000.000-00">
-                  </div>
-                  <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data de Nascimento</label>
-                    <input v-model="form.dataNascimento" type="date" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all font-medium text-slate-600">
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex gap-3">
-                <button @click="voltar" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-xl transition-all">
-                  Voltar
-                </button>
-                <button @click="avancar" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/20">
-                  Continuar
-                </button>
-              </div>
             </div>
 
-            <!-- STEP 3: MOTIVO -->
-            <div v-else-if="step === 3" class="space-y-6">
-              <div class="text-center">
-                <h2 class="text-2xl font-bold text-slate-800">Detalhes da Solicitação</h2>
-                <p class="text-slate-500 text-sm mt-1">Justifique a necessidade da viagem.</p>
-              </div>
-
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Departamento</label>
-                  <div class="relative">
-                    <select v-model="form.setor" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white appearance-none focus:border-blue-500 outline-none transition-all font-medium text-slate-600">
-                      <option value="" disabled selected>Selecione o setor...</option>
-                      <option value="TI">Tecnologia</option>
-                      <option value="RH">RH</option>
-                      <option value="FIN">Financeiro</option>
-                      <option value="COM">Comercial</option>
-                      <option value="OPS">Operações</option>
-                    </select>
-                    <div class="absolute right-4 top-3.5 pointer-events-none text-slate-400">▼</div>
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Motivo da Viagem</label>
-                  <textarea v-model="form.motivo" rows="4" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition-all resize-none font-medium" placeholder="Descreva detalhadamente o motivo..."></textarea>
-                </div>
-              </div>
-
-              <div class="flex gap-3">
-                <button @click="voltar" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-xl transition-all">
-                  Voltar
-                </button>
-                <button @click="enviar" :disabled="loading" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-                  <span v-if="loading" class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
-                  <span v-else>Finalizar Solicitação</span>
-                </button>
-              </div>
-              <p v-if="erroMsg" class="text-center text-red-500 text-sm font-bold">{{ erroMsg }}</p>
+            <div class="mt-6">
+              <label class="block text-sm font-bold text-slate-700 mb-2">Motivo da Viagem</label>
+              <textarea v-model="form.motivo" rows="3" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Descreva o motivo da solicitação..."></textarea>
             </div>
+          </div>
 
-            <!-- STEP 4: SUCESSO -->
-            <div v-else class="text-center py-8">
-              <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 animate-bounce">✓</div>
-              <h2 class="text-3xl font-bold text-slate-800 mb-2">Sucesso!</h2>
-              <p class="text-slate-500 mb-8 max-w-md mx-auto">Sua solicitação foi salva no banco de dados e a vaga foi reservada.</p>
-              <div class="space-y-3">
-                <NuxtLink to="/dashboard" class="block w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800">Voltar ao Dashboard</NuxtLink>
-                <NuxtLink to="/minhas-solicitacoes" class="block w-full text-slate-500 font-bold py-3 rounded-xl hover:bg-slate-50">Ver Meus Pedidos</NuxtLink>
-              </div>
-            </div>
-
-          </Transition>
         </div>
+
+        <!-- Coluna 2: Seleção de Voo -->
+        <div class="space-y-6">
+          
+          <!-- Tipo de Viagem -->
+          <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+             <h3 class="font-bold text-lg text-slate-800 mb-4">Tipo de Viagem</h3>
+             <div class="flex bg-slate-100 p-1 rounded-xl">
+               <button 
+                 @click="tipoViagem = 'IDA'"
+                 class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                 :class="tipoViagem === 'IDA' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+               >
+                 Somente Ida
+               </button>
+               <button 
+                 @click="tipoViagem = 'IDA_VOLTA'"
+                 class="flex-1 py-2 rounded-lg text-sm font-bold transition-all"
+                 :class="tipoViagem === 'IDA_VOLTA' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+               >
+                 Ida e Volta
+               </button>
+             </div>
+          </div>
+
+          <!-- Seleção de Voo IDA -->
+          <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+            <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span class="material-icons text-emerald-500">flight_takeoff</span> Voo de Ida
+            </h3>
+            
+            <div class="mb-4">
+              <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Data da Viagem</label>
+              <input v-model="dataViagem" type="date" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+
+            <div v-if="vagasDisponiveis.length > 0" class="space-y-3">
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Voos Disponíveis</p>
+              <div 
+                v-for="vaga in vagasDisponiveis" 
+                :key="vaga.id"
+                @click="vagaSelecionada = vaga.id"
+                class="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]"
+                :class="vagaSelecionada === vaga.id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-emerald-200'"
+              >
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-slate-700">{{ new Date(vaga.data).toLocaleDateString('pt-BR') }}</span>
+                  <span class="text-xs font-bold px-2 py-1 bg-white rounded-lg text-emerald-600 shadow-sm">
+                    {{ vaga.vagasDisponiveis - vaga.vagasOcupadas }} vagas
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">Saída: Recife (REC)</p>
+              </div>
+            </div>
+            
+            <div v-else-if="dataViagem" class="text-center py-8 text-slate-400">
+              <span class="material-icons text-3xl mb-2">sentiment_dissatisfied</span>
+              <p class="text-sm">Nenhum voo disponível nesta data.</p>
+            </div>
+          </div>
+
+          <!-- Seleção de Voo VOLTA (Condicional) -->
+          <div v-if="tipoViagem === 'IDA_VOLTA'" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 animate-fade-in">
+            <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span class="material-icons text-purple-500">flight_land</span> Voo de Volta
+            </h3>
+            
+            <div class="mb-4">
+              <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Data da Volta</label>
+              <input v-model="dataVolta" type="date" :min="dataViagem" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 outline-none">
+            </div>
+
+            <div v-if="vagasVoltaDisponiveis.length > 0" class="space-y-3">
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Voos Disponíveis</p>
+              <div 
+                v-for="vaga in vagasVoltaDisponiveis" 
+                :key="vaga.id"
+                @click="vagaVoltaSelecionada = vaga.id"
+                class="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]"
+                :class="vagaVoltaSelecionada === vaga.id ? 'border-purple-500 bg-purple-50' : 'border-slate-100 hover:border-purple-200'"
+              >
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-slate-700">{{ new Date(vaga.data).toLocaleDateString('pt-BR') }}</span>
+                  <span class="text-xs font-bold px-2 py-1 bg-white rounded-lg text-purple-600 shadow-sm">
+                    {{ vaga.vagasDisponiveis - vaga.vagasOcupadas }} vagas
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">Saída: Noronha (FEN)</p>
+              </div>
+            </div>
+            
+            <div v-else-if="dataVolta" class="text-center py-8 text-slate-400">
+              <span class="material-icons text-3xl mb-2">sentiment_dissatisfied</span>
+              <p class="text-sm">Nenhum voo disponível nesta data.</p>
+            </div>
+          </div>
+
+          <!-- Botão de Envio -->
+          <button 
+            @click="enviarSolicitacao"
+            :disabled="carregando"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30 transform transition hover:-translate-y-1 active:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <span v-if="carregando" class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+            <span v-else>Confirmar Solicitação</span>
+            <span v-if="!carregando" class="material-icons">arrow_forward</span>
+          </button>
+
+          <div v-if="erro" class="bg-rose-100 text-rose-600 p-4 rounded-xl text-sm font-bold text-center animate-shake">
+            {{ erro }}
+          </div>
+
+        </div>
+
       </div>
 
     </main>
   </div>
 </template>
 
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
-.fade-enter-from { opacity: 0; transform: translateY(10px); }
-.fade-leave-to { opacity: 0; transform: translateY(-10px); }
+<style>
+/* Importar Ícones */
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
+.animate-slide-down {
+  animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
 </style>

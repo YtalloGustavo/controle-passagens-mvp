@@ -36,7 +36,15 @@ onMounted(() => {
   }
 })
 
-const { data: relatorio, pending } = await useFetch<RelatorioResponse>('/api/relatorios/geral')
+const dataInicio = ref('')
+const dataFim = ref('')
+
+const { data: relatorio, pending, refresh } = await useFetch<RelatorioResponse>('/api/relatorios/geral', {
+  query: {
+    dataInicio,
+    dataFim
+  }
+})
 
 // Utilitários de Formatação
 const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
@@ -100,8 +108,13 @@ const formatData = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day:
           <h2 class="text-3xl font-extrabold text-slate-900">Relatórios Gerenciais</h2>
           <p class="text-slate-500 mt-1">Métricas consolidadas e indicadores de performance.</p>
         </div>
-        <div class="bg-white px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 shadow-sm">
-           📅 Mês Atual
+        <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+           <input type="date" v-model="dataInicio" class="text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-blue-500">
+           <span class="text-slate-400 text-xs">até</span>
+           <input type="date" v-model="dataFim" class="text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-blue-500">
+           <button @click="refresh()" class="bg-blue-600 text-white p-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+             <span class="material-icons text-sm">filter_list</span>
+           </button>
         </div>
       </header>
 

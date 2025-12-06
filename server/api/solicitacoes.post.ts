@@ -10,25 +10,49 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, statusMessage: 'Dados incompletos.' })
     }
 
-    // 2. Verificar Disponibilidade
-    const vaga = await prisma.vaga.findUnique({
+    // 2. Verificar Disponibilidade (IDA)
+    const vagaIda = await prisma.vaga.findUnique({
         where: { id: Number(body.vagaId) }
     })
 
-    if (!vaga) {
-        throw createError({ statusCode: 404, statusMessage: 'Voo não encontrado.' })
+    if (!vagaIda) {
+        throw createError({ statusCode: 404, statusMessage: 'Voo de ida não encontrado.' })
     }
 
-    // Regras de bloqueio
-    if (vaga.bloqueado) {
-        throw createError({ statusCode: 400, statusMessage: 'Voo bloqueado pelo Gerente Master para eventos' })
+    if (vagaIda.bloqueado) {
+        throw createError({ statusCode: 400, statusMessage: 'Voo de ida bloqueado pelo Gerente Master para eventos' })
     }
 
-    if ((vaga.vagasDisponiveis - vaga.vagasOcupadas) <= 0) {
-        throw createError({ statusCode: 400, statusMessage: 'Voo lotado.' })
+    if ((vagaIda.vagasDisponiveis - vagaIda.vagasOcupadas) <= 0) {
+        throw createError({ statusCode: 400, statusMessage: 'Voo de ida lotado.' })
     }
 
-    // 3. Transação no Banco de Dados
+    // 3. Verificar Disponibilidade (VOLTA) - Opcional
+    let vagaVolta = null
+    if (body.vagaVoltaId) {
+        vagaVolta = await prisma.vaga.findUnique({
+            where: { id: Number(body.vagaVoltaId) }
+        })
+
+        if (!vagaVolta) {
+            throw createError({ statusCode: 404, statusMessage: 'Voo de volta não encontrado.' })
+        }
+
+        if (vagaVolta.bloqueado) {
+            throw createError({ statusCode: 400, statusMessage: 'Voo de volta bloqueado pelo Gerente Master para eventos' })
+        }
+
+        if ((vagaVolta.vagasDisponiveis - vagaVolta.vagasOcupadas) <= 0) {
+            throw createError({ statusCode: 400, statusMessage: 'Voo de volta lotado.' })
+        }
+
+        // Validar Cronologia
+        if (new Date(vagaVolta.data) < new Date(vagaIda.data)) {
+            throw createError({ statusCode: 400, statusMessage: 'A data de volta não pode ser anterior à data de ida.' })
+        }
+    }
+
+    // 4. Transação no Banco de Dados
     const resultado = await prisma.$transaction(async (tx) => {
 
         // A. Cria a solicitação
@@ -39,20 +63,31 @@ export default defineEventHandler(async (event) => {
                 dataNascimento: new Date(body.dataNascimento),
                 setor: body.setor,
                 motivo: body.motivo,
-                vagaId: vaga.id,
+                vagaId: vagaIda.id,
+                vagaVoltaId: vagaVolta ? vagaVolta.id : null,
                 status: 'ANALISE_GESTOR'
             }
         })
 
-        // B. Desconta a vaga
+        // B. Desconta a vaga de IDA
         await tx.vaga.update({
-            where: { id: vaga.id },
+            where: { id: vagaIda.id },
             data: {
                 vagasOcupadas: { increment: 1 }
             }
         })
 
-        // C. Histórico Inicial
+        // C. Desconta a vaga de VOLTA (se houver)
+        if (vagaVolta) {
+            await tx.vaga.update({
+                where: { id: vagaVolta.id },
+                data: {
+                    vagasOcupadas: { increment: 1 }
+                }
+            })
+        }
+
+        // D. Histórico Inicial
         await tx.historicoAprovacao.create({
             data: {
                 solicitacaoId: novaSolicitacao.id,

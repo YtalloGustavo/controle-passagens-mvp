@@ -20,7 +20,7 @@ const { usuario } = useAuth() // Apenas para referência visual se necessário
 
 // --- ESTADOS ---
 const processando = ref<number | null>(null)
-const dadosHospedagem = reactive<Record<number, { tipo: string, info: string }>>({})
+const dadosHospedagem = reactive<Record<number, { tipo: string, info: string, preco?: string }>>({})
 
 // --- SIMULADOR DE PERFIL (Dinâmico) ---
 const { data: usuariosDb } = await useFetch('/api/usuarios')
@@ -41,6 +41,9 @@ const pendencias = computed(() => {
   const cargoSelecionado = perfis.value.find((p: any) => p.id === perfilAtual.value)?.perfil
 
   return solicitacoes.value.filter((s) => {
+    // 0. MASTER vê TUDO que não esteja finalizado (APROVADO ou RECUSADO)
+    if (cargoSelecionado === 'MASTER' && !['APROVADO', 'RECUSADO'].includes(s.status)) return true
+
     // 1. Gestor vê novos
     if (cargoSelecionado === 'GESTOR' && s.status === 'ANALISE_GESTOR') return true
     
@@ -92,7 +95,8 @@ const processar = async (id: number, acao: 'APROVAR' | 'NEGAR') => {
         solicitacaoId: id,
         usuarioId: perfilAtual.value, // Simula o usuário logado
         acao: acao,
-        detalhesHospedagem // Envia dados da casa/hotel se houver
+        detalhesHospedagem, // Envia dados da casa/hotel se houver
+        preco: dadosHospedagem[id]?.preco // Envia o preço se houver
       }
     })
     
@@ -110,6 +114,20 @@ const processar = async (id: number, acao: 'APROVAR' | 'NEGAR') => {
 
 // Utilitário
 const formatData = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    'ANALISE_GESTOR': 'Aguardando Gestor',
+    'ANALISE_PASSAGEM': 'Aguardando Passagem',
+    'ANALISE_HOSPEDAGEM': 'Aguardando Hospedagem',
+    'VERIFICACAO_VOLTA': 'Aguardando Passagem (Volta)',
+    'APROVACAO_ADMIN': 'Aguardando Admin',
+    'ANALISE_FINANCEIRO': 'Aguardando Financeiro',
+    'APROVADO': 'Aprovado',
+    'RECUSADO': 'Recusado'
+  }
+  return labels[status] || status
+}
 </script>
 
 <template>
@@ -221,7 +239,7 @@ const formatData = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR',
               
               <div class="flex items-center gap-2 mt-2 text-xs font-medium text-indigo-600">
                 <span class="material-icons text-[14px]">schedule</span>
-                <span>Aguardando {{ perfis.find((p: any) => p.id === perfilAtual)?.perfil }}</span>
+                <span>{{ getStatusLabel(pedido.status) }}</span>
               </div>
 
               <div v-if="pedido.infoHospedagem" class="mt-2 flex items-center gap-1 text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded inline-block">
@@ -257,6 +275,22 @@ const formatData = (d: string | Date) => new Date(d).toLocaleDateString('pt-BR',
                   class="flex-1 px-3 py-1.5 rounded-lg border border-indigo-200 text-xs font-medium outline-none focus:border-indigo-500"
                 >
               </div>
+            </div>
+
+            <!-- FORMULÁRIO DE PREÇO (Para Passagem, Admin ou Financeiro) -->
+            <div 
+              v-if="['PASSAGEM', 'ADMIN', 'FINANCEIRO', 'MASTER'].includes(perfis.find((p: any) => p.id === perfilAtual)?.perfil || '')"
+              class="flex flex-col gap-2 bg-emerald-50 p-3 rounded-xl border border-emerald-100"
+            >
+              <p class="text-[10px] font-bold text-emerald-600 uppercase">Custo da Viagem (R$)</p>
+              <input 
+                type="number" 
+                placeholder="0.00"
+                step="0.01"
+                :value="dadosHospedagem[pedido.id]?.preco || ''"
+                @input="(e: any) => { if(!dadosHospedagem[pedido.id]) dadosHospedagem[pedido.id] = { tipo: 'CASA_FUNCIONAL', info: '' }; dadosHospedagem[pedido.id].preco = e.target.value }"
+                class="w-full px-3 py-1.5 rounded-lg border border-emerald-200 text-xs font-bold text-emerald-700 outline-none focus:border-emerald-500 bg-white"
+              >
             </div>
 
             <div class="flex gap-3">

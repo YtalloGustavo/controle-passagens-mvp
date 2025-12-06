@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -22,7 +23,8 @@ export default defineEventHandler(async (event) => {
 
     // Só atualiza senha se for enviada
     if (body.senha) {
-        dataToUpdate.senha = body.senha
+        const salt = bcrypt.genSaltSync(10)
+        dataToUpdate.senha = bcrypt.hashSync(body.senha, salt)
     }
 
     try {

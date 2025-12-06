@@ -57,12 +57,25 @@ export default defineEventHandler(async (event) => {
         novoStatus = etapaAtual.proximo
     } else if (body.acao === 'RECUSAR') {
         novoStatus = 'RECUSADO'
+
+        // Liberar vagas se recusado
+        await prisma.vaga.update({
+            where: { id: solicitacao.vagaId },
+            data: { vagasOcupadas: { decrement: 1 } }
+        })
+        if (solicitacao.vagaVoltaId) {
+            await prisma.vaga.update({
+                where: { id: solicitacao.vagaVoltaId },
+                data: { vagasOcupadas: { decrement: 1 } }
+            })
+        }
     }
 
     // 4. Atualizar no Banco
     const dadosExtras: any = {}
     if (body.tipoHospedagem) dadosExtras.tipoHospedagem = body.tipoHospedagem
     if (body.infoHospedagem) dadosExtras.infoHospedagem = body.infoHospedagem
+    if (body.preco) dadosExtras.preco = parseFloat(body.preco)
 
     await prisma.$transaction([
         prisma.solicitacao.update({

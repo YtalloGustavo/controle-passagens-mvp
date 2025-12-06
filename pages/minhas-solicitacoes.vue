@@ -281,7 +281,10 @@ const excluirSolicitacao = async (id: number) => {
               <div class="text-right">
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Voo</p>
                 <p class="font-bold text-slate-700">
-                  {{ pedido.vaga.direcao }} • {{ formatarData(pedido.vaga.data) }}
+                  IDA: {{ formatarData(pedido.vaga.data) }}
+                  <span v-if="pedido.vagaVolta" class="block text-purple-600">
+                    VOLTA: {{ formatarData(pedido.vagaVolta.data) }}
+                  </span>
                 </p>
               </div>
               
